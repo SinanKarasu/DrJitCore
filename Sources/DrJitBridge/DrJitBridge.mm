@@ -179,6 +179,16 @@ std::size_t DrJitArray::dataCount() const { return d_->hostData.size(); }
 // ─── DrJitContext ─────────────────────────────────────────────────────────────
 
 void DrJitContext::initMetal() {
+    // visionOS/iOS sandbox: the app container root is not writable.
+    // Dr.Jit creates $HOME/.drjit to cache compiled Metal kernels.
+    // Redirect HOME to NSCachesDirectory so the cache lands somewhere writable.
+#if TARGET_OS_IOS || TARGET_OS_XR
+    NSArray<NSString *> *dirs =
+        NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    if (NSString *cachesDir = dirs.firstObject) {
+        setenv("HOME", cachesDir.fileSystemRepresentation, /*overwrite=*/1);
+    }
+#endif
     jit_init(1u << (uint32_t)JitBackend::Metal);
 }
 
