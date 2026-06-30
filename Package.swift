@@ -12,9 +12,10 @@
 // or:
 //   Scripts/bootstrap-drjit.sh
 //
-// The bootstrap builds drjit-core + nanothread from the sibling clone at
-// ../DrJit with the Metal backend enabled (LLVM, CUDA, Python all off),
-// then stages a multi-platform STATIC XCFramework into vendor/.
+// The bootstrap builds drjit-core + nanothread from DRJIT_SRC, the canonical
+// GitHub/mitsuba-renderer/drjit clone, or the legacy sibling clone at ../DrJit
+// with the Metal backend enabled (LLVM, CUDA, Python all off), then stages a
+// multi-platform STATIC XCFramework into vendor/.
 //
 // Static library xcframework: no embedding required, no rpath issues.
 // Metal is the JIT backend: drjit-core compiles expressions to MSL at runtime

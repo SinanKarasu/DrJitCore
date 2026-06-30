@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # bootstrap-drjit.sh
 #
-# Builds drjit-core (Metal backend only) from the sibling clone at ../DrJit,
-# then stages headers + a multi-platform STATIC XCFramework into vendor/.
+# Builds drjit-core (Metal backend only), then stages headers + a
+# multi-platform STATIC XCFramework into vendor/.
+#
+# Source selection:
+#   1. DRJIT_SRC, when set
+#   2. /Volumes/GitHubDeveloper/GitHub/mitsuba-renderer/drjit
+#   3. ../DrJit, for compatibility with the original layout
 #
 # Static library xcframework: no embedding required, no rpath issues.
 #
@@ -17,10 +22,34 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DRJIT_SRC="$(cd "${ROOT_DIR}/../DrJit" && pwd)"
+CANONICAL_DRJIT_SRC="/Volumes/GitHubDeveloper/GitHub/mitsuba-renderer/drjit"
+LEGACY_DRJIT_SRC="${ROOT_DIR}/../DrJit"
 BUILD_ROOT="${ROOT_DIR}/.build/drjit-bootstrap"
 INCLUDE_DIR="${ROOT_DIR}/vendor/drjit-include"
 XCFRAMEWORK_PATH="${ROOT_DIR}/vendor/DrJitBinary.xcframework"
+
+resolve_drjit_src() {
+    local candidates=()
+    if [[ -n "${DRJIT_SRC:-}" ]]; then
+        candidates+=("${DRJIT_SRC}")
+    fi
+    candidates+=("${CANONICAL_DRJIT_SRC}" "${LEGACY_DRJIT_SRC}")
+
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "${candidate}/ext/drjit-core/include/drjit-core/jit.h" ]]; then
+            (cd "${candidate}" && pwd -P)
+            return 0
+        fi
+    done
+
+    echo "DrJit source not found." >&2
+    echo "Set DRJIT_SRC=/path/to/drjit, or clone it with:" >&2
+    echo "  git clone --recursive https://github.com/mitsuba-renderer/drjit ${CANONICAL_DRJIT_SRC}" >&2
+    return 1
+}
+
+DRJIT_SRC="$(resolve_drjit_src)"
 
 require_tool() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -33,11 +62,7 @@ require_tool xcodebuild
 require_tool libtool
 
 # ── Validate source ────────────────────────────────────────────────────────────
-if [[ ! -f "${DRJIT_SRC}/ext/drjit-core/include/drjit-core/jit.h" ]]; then
-    echo "DrJit source not found at ${DRJIT_SRC}" >&2
-    echo "Clone it with: git clone --recursive https://github.com/mitsuba-renderer/drjit ../DrJit" >&2
-    exit 1
-fi
+echo "Using DrJit source: ${DRJIT_SRC}"
 
 # ── Prepare a patched build copy ──────────────────────────────────────────────
 # drjit-core CMakeLists has:
@@ -49,7 +74,8 @@ PATCHED_SRC="${BUILD_ROOT}/drjit-src"
 mkdir -p "${BUILD_ROOT}"
 rm -rf "${PATCHED_SRC}"
 echo "Copying DrJit source to build dir..."
-cp -R "${DRJIT_SRC}" "${PATCHED_SRC}"
+mkdir -p "${PATCHED_SRC}"
+cp -R "${DRJIT_SRC}/." "${PATCHED_SRC}/"
 
 CORE_CMAKE="${PATCHED_SRC}/ext/drjit-core/CMakeLists.txt"
 perl -i -p -e 's/drjit-core SHARED/drjit-core STATIC/g' "${CORE_CMAKE}"
